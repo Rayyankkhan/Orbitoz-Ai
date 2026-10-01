@@ -1,0 +1,53 @@
+{
+  "name": "@orbitoz/config",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared ESLint, Prettier and TypeScript configurations for the Orbitoz AI monorepo",
+  "license": "UNLICENSED",
+  "type": "module",
+  "files": [
+    "eslint",
+    "tsconfig",
+    "prettier.config.mjs",
+    "vitest.base.js",
+    "vitest.base.d.ts"
+  ],
+  "exports": {
+    "./eslint": "./eslint/index.js",
+    "./eslint/base": "./eslint/base.js",
+    "./eslint/nestjs": "./eslint/nestjs.js",
+    "./eslint/nextjs": "./eslint/nextjs.js",
+    "./eslint/library": "./eslint/library.js",
+    "./prettier": "./prettier.config.mjs",
+    "./tsconfig/base.json": "./tsconfig/base.json",
+    "./tsconfig/library.json": "./tsconfig/library.json",
+    "./tsconfig/nestjs.json": "./tsconfig/nestjs.json",
+    "./tsconfig/nextjs.json": "./tsconfig/nextjs.json",
+    "./package.json": "./package.json",
+    "./vitest": {
+      "types": "./vitest.base.d.ts",
+      "default": "./vitest.base.js"
+    }
+  },
+  "scripts": {
+    "lint": "echo \"@orbitoz/config: no lintable sources\"",
+    "typecheck": "echo \"@orbitoz/config: no TypeScript sources\"",
+    "build": "echo \"@orbitoz/config: nothing to build\"",
+    "clean": "rimraf .turbo",
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@eslint/js": "catalog:",
+    "eslint": "catalog:",
+    "eslint-config-next": "catalog:",
+    "eslint-config-prettier": "catalog:",
+    "globals": "catalog:",
+    "prettier": "catalog:",
+    "rimraf": "catalog:",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:",
+    "vitest": "catalog:"
+  }
+}

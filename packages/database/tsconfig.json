@@ -1,0 +1,11 @@
+{
+  "extends": "@orbitoz/config/tsconfig/nestjs.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "lib": ["ES2023"],
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts", "src/**/*.spec.ts"]
+}

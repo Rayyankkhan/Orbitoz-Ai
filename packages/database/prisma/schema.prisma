@@ -1,0 +1,604 @@
+// ===========================================================================
+// Orbitoz AI — Prisma schema
+//
+// TENANCY MODEL: shared schema, `tenantId` discriminator on every tenant-owned
+// table. Chosen over schema-per-tenant and database-per-tenant because:
+//
+//   * schema-per-tenant  -> 1 connection pool + 1 migration per tenant; the
+//                           pool count alone exhausts Postgres' max_connections
+//                           at a few hundred tenants.
+//   * database-per-tenant-> same problem, plus per-tenant failover and backup.
+//
+// The cost of shared-schema is that a missing `where: { tenantId }` leaks data
+// across tenants. That is defended three times over:
+//
+//   1. `tenantId` is part of every composite primary key / unique index below,
+//      so `id` is never globally unique and a bare `findUnique({ where: { id } })`
+//      does not even compile.
+//   2. `PrismaService` auto-injects `tenantId` into every query via a Prisma
+//      client extension — a handler cannot forget it.
+//   3. PostgreSQL Row Level Security (prisma/rls.sql) is the backstop: even a
+//      raw `psql` session without a tenant set returns zero rows.
+//
+// See docs/architecture/multi-tenancy.md.
+// ===========================================================================
+
+generator client {
+  provider = "prisma-client"
+
+  // Prisma 7 generates plain TypeScript into the workspace instead of injecting
+  // files into node_modules, so the client is versioned, lintable and built by
+  // `tsc` like any other source.
+  output = "../src/generated/prisma"
+
+  // NestJS 12 is ESM-only, so the whole service graph is native ESM. Generating
+  // the client as ESM keeps a single module format end to end and removes the
+  // CJS/ESM interop shims that otherwise litter a monorepo.
+  runtime            = "nodejs"
+  moduleFormat       = "esm"
+  generatedFileExtension = "ts"
+  // NodeNext requires explicit extensions on relative imports; `.js` is what
+  // tsc emits and what Node resolves from dist/.
+  importFileExtension = "js"
+}
+
+// Prisma 7 removed `url` from the datasource block: the connection string now
+// comes from `prisma.config.ts` (for the CLI) and from the driver adapter
+// passed to `PrismaClient` (for the runtime). See src/client/prisma-factory.ts.
+datasource db {
+  provider = "postgresql"
+}
+
+// ===========================================================================
+// Enums — mirror of the domain enums in @orbitoz/shared-types/src/enums
+// ===========================================================================
+
+enum TenantStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+  CANCELED
+}
+
+enum SubscriptionPlan {
+  FREE
+  STARTER
+  GROWTH
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  INCOMPLETE
+}
+
+enum UserStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+
+enum TenantRole {
+  OWNER
+  ADMIN
+  DEVELOPER
+  ANALYST
+  BILLING
+  VIEWER
+}
+
+enum ProviderStatus {
+  ENABLED
+  DISABLED
+}
+
+enum RoutingStrategy {
+  FIXED
+  COST_OPTIMIZED
+  QUALITY_OPTIMIZED
+  LATENCY_OPTIMIZED
+  BALANCED
+  FAILOVER
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELED
+  DEAD_LETTERED
+}
+
+enum ApiKeyScope {
+  INFERENCE_READ
+  INFERENCE_WRITE
+  USAGE_READ
+  TENANT_READ
+  TENANT_WRITE
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+enum AuditAction {
+  TENANT_CREATED
+  TENANT_UPDATED
+  TENANT_SUSPENDED
+  MEMBER_INVITED
+  MEMBER_ROLE_CHANGED
+  MEMBER_REMOVED
+  API_KEY_CREATED
+  API_KEY_REVOKED
+  INFERENCE_REQUESTED
+  SIGN_IN
+  SIGN_IN_FAILED
+  SIGN_OUT
+  TOKEN_REFRESHED
+}
+
+// ===========================================================================
+// Identity — global (not tenant-scoped)
+// ===========================================================================
+
+model User {
+  id              String     @id @default(uuid(7)) @db.Uuid
+  email           String     @unique @db.VarChar(320)
+  emailVerifiedAt DateTime?  @map("email_verified_at")
+  passwordHash    String     @map("password_hash") @db.VarChar(255)
+  name            String?    @db.VarChar(200)
+  avatarUrl       String?    @map("avatar_url") @db.VarChar(2048)
+  locale          String     @default("en") @db.VarChar(16)
+  status          UserStatus @default(INVITED)
+  isPlatformAdmin Boolean    @default(false) @map("is_platform_admin")
+
+  lastLoginAt DateTime? @map("last_login_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  // A user can belong to many tenants. The relation is always read *through* a
+  // membership so the role is never ambiguous.
+  memberships        Membership[]
+  refreshTokens      RefreshToken[]
+  createdInvitations Invitation[]     @relation("InvitationInviter")
+
+  @@map("users")
+}
+
+model RefreshToken {
+  // The token *family*. Rotating a refresh token keeps the family id stable so
+  // that replaying an already-rotated token can revoke the whole family.
+  familyId    String   @map("family_id") @db.Uuid
+  tokenHash   String   @unique @map("token_hash") @db.VarChar(128)
+  userId      String   @map("user_id") @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  expiresAt   DateTime @map("expires_at")
+  revokedAt   DateTime? @map("revoked_at")
+  revokedReason String? @map("revoked_reason") @db.VarChar(64)
+  // Inode of the previous token in the rotation chain; walking it backwards
+  // detects replay.
+  replacedById String?  @map("replaced_by_id") @db.Uuid
+  userAgent    String?  @map("user_agent") @db.VarChar(512)
+  ipAddress    String?  @map("ip_address") @db.VarChar(45)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([familyId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+// ===========================================================================
+// Tenancy
+// ===========================================================================
+
+model Tenant {
+  id   String @id @default(uuid(7)) @db.Uuid
+  slug String @unique @db.VarChar(63)
+  name String @db.VarChar(200)
+  // DNS-resolved custom domain, e.g. "ai.acme.com". Unique when present.
+  customDomain String? @unique @map("custom_domain") @db.VarChar(253)
+
+  status TenantStatus @default(TRIALING)
+  plan   SubscriptionPlan @default(FREE)
+
+  // Denormalised from Subscription for fast entitlement checks. Authoritative
+  // source is the Subscription row; keep them in sync in one transaction.
+  monthlyRequestQuota Int      @default(1000) @map("monthly_request_quota")
+  maxSeats            Int      @default(3) @map("max_seats")
+  maxRpm              Int      @default(10) @map("max_rpm")
+
+  defaultRoutingStrategy RoutingStrategy @default(BALANCED) @map("default_routing_strategy")
+
+  trialEndsAt DateTime? @map("trial_ends_at")
+  suspendedAt DateTime? @map("suspended_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  memberships   Membership[]
+  invitations   Invitation[]
+  apiKeys       ApiKey[]
+  providers     TenantProvider[]
+  subscriptions Subscription[]
+  conversations  Conversation[]
+  jobs           InferenceJob[]
+  usageRecords   UsageRecord[]
+  usageRollups   UsageRollup[]
+  auditLogs      AuditLog[]
+  idempotencyKeys IdempotencyKey[]
+
+  @@index([status])
+  @@index([customDomain])
+  @@map("tenants")
+}
+
+model Membership {
+  // Composite PK: a membership is identified by (tenant, user), never globally.
+  // This is the structural reason `findUnique({ where: { id } })` cannot leak.
+  tenantId String @map("tenant_id") @db.Uuid
+  userId   String @map("user_id") @db.Uuid
+  role     TenantRole @default(VIEWER)
+
+  invitedById String? @map("invited_by_id") @db.Uuid
+  joinedAt    DateTime @default(now()) @map("joined_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, userId])
+  @@index([userId])
+  @@index([tenantId, role])
+  @@map("memberships")
+}
+
+model Invitation {
+  tenantId  String @map("tenant_id") @db.Uuid
+  email     String @db.VarChar(320)
+  role      TenantRole @default(VIEWER)
+  tokenHash String @unique @map("token_hash") @db.VarChar(128)
+  status    InvitationStatus @default(PENDING)
+  expiresAt DateTime @map("expires_at")
+  inviterId String? @map("inviter_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  acceptedAt DateTime? @map("accepted_at")
+
+  tenant  Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  inviter User?  @relation("InvitationInviter", fields: [inviterId], references: [id], onDelete: SetNull)
+
+  @@id([tenantId, email])
+  @@index([email])
+  @@map("invitations")
+}
+
+model Subscription {
+  tenantId String @map("tenant_id") @db.Uuid
+  plan     SubscriptionPlan
+  status   SubscriptionStatus
+  seats    Int @default(1)
+
+  // Reference to the billing provider's customer object. Never a raw secret.
+  providerCustomerRef String? @map("provider_customer_ref") @db.VarChar(255)
+  currentPeriodStart  DateTime? @map("current_period_start")
+  currentPeriodEnd    DateTime? @map("current_period_end")
+  cancelAtPeriodEnd   Boolean   @default(false) @map("cancel_at_period_end")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId])
+  @@index([status])
+  @@map("subscriptions")
+}
+
+// ===========================================================================
+// Credentials
+// ===========================================================================
+
+model ApiKey {
+  tenantId String @map("tenant_id") @db.Uuid
+  id       String @default(uuid(7)) @db.Uuid
+
+  name   String @db.VarChar(120)
+  // Displayed in the UI so a key can be identified; the secret itself is only
+  // ever returned once, at creation.
+  prefix String @db.VarChar(12)
+  // SHA-256 of the secret, globally unique so a bearer token can be resolved to
+  // its tenant in one query, before any tenant scope exists.
+  secretHash String @unique @map("secret_hash") @db.VarChar(128)
+
+  scopes   ApiKeyScope[] @default([INFERENCE_READ, INFERENCE_WRITE])
+  rateLimitRpm Int?     @map("rate_limit_rpm")
+  expiresAt   DateTime? @map("expires_at")
+  lastUsedAt  DateTime? @map("last_used_at")
+  revokedAt   DateTime? @map("revoked_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // Composite PK, not a bare `id`: the whole point is that `ApiKey.id` is not
+  // globally unique, so `prisma.apiKey.findUnique({ where: { id } })` does not
+  // compile. `secretHash` stays globally unique on purpose — resolving a
+  // bearer token to its tenant has to happen before a tenant scope exists.
+  @@id([tenantId, id])
+  @@unique([tenantId, prefix])
+  @@index([tenantId, revokedAt])
+  @@index([expiresAt])
+  @@map("api_keys")
+}
+
+// ===========================================================================
+// AI provider catalogue and tenant entitlements
+// ===========================================================================
+
+/// A model offered by an upstream provider. Seeded, not user-created.
+model ProviderModel {
+  id       String @id @default(uuid(7)) @db.Uuid
+  provider String @db.VarChar(64)
+  modelId  String @map("model_id") @db.VarChar(128)
+  displayName String? @map("display_name") @db.VarChar(200)
+
+  capabilities String[] @default([])
+  contextWindow Int?    @map("context_window")
+  maxOutputTokens Int?  @map("max_output_tokens")
+
+  // Cost per 1M tokens, in USD, as a fixed-point integer to avoid float drift
+  // in billing maths. 4 decimal places => 1 unit == $0.0001.
+  inputCostPerMTokens  Int @map("input_cost_per_m_tokens")
+  outputCostPerMTokens Int @map("output_cost_per_m_tokens")
+
+  // 0..10000, tenant-agnostic quality score used by QUALITY_OPTIMIZED routing.
+  qualityScore  Int @default(5000) @map("quality_score")
+  latencyScore  Int @default(5000) @map("latency_score")
+  isDeprecated  Boolean @default(false) @map("is_deprecated")
+  isEnabled     Boolean @default(true) @map("is_enabled")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  tenantOverrides TenantProvider[]
+
+  @@unique([provider, modelId])
+  @@index([provider, isEnabled])
+  @@map("provider_models")
+}
+
+/// Join row: which providers a tenant may use, and with what limits.
+/// Absent row + plan default = "allowed".
+model TenantProvider {
+  tenantId String @map("tenant_id") @db.Uuid
+  // FK to ProviderModel.id. The tenant can only enable models that exist in
+  // the catalogue.
+  modelId  String @map("model_id") @db.Uuid
+
+  status   ProviderStatus @default(ENABLED)
+  weight   Int      @default(100)
+  // Reference into the secrets manager (AWS SM / GCP SM / Vault). A raw API
+  // key never touches this table.
+  credentialRef String? @map("credential_ref") @db.VarChar(255)
+  // Per-tenant price multiplier in basis points; 10000 = list price.
+  priceMultiplierBps Int @default(10000) @map("price_multiplier_bps")
+  maxInputTokensPerMin Int? @map("max_input_tokens_per_min")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  model  ProviderModel @relation(fields: [modelId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, modelId])
+  @@index([tenantId, status])
+  @@map("tenant_providers")
+}
+
+// ===========================================================================
+// Conversations and inference jobs
+// ===========================================================================
+
+model Conversation {
+  tenantId String @map("tenant_id") @db.Uuid
+  id       String @default(uuid(7)) @db.Uuid
+
+  title      String?  @db.VarChar(300)
+  provider   String?  @db.VarChar(64)
+  model      String?  @db.VarChar(128)
+  metadata   Json     @default("{}")
+  archivedAt DateTime? @map("archived_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  jobs   InferenceJob[]
+
+  @@id([tenantId, id])
+  @@index([tenantId, updatedAt])
+  @@map("conversations")
+}
+
+model InferenceJob {
+  tenantId       String @map("tenant_id") @db.Uuid
+  id             String @default(uuid(7)) @db.Uuid
+  conversationId String? @map("conversation_id") @db.Uuid
+
+  /// Matches the BullMQ job id. Lets a worker reconcile Redis state with the
+  /// database after a Redis flush or an operator-triggered cancel.
+  queueJobId    String? @map("queue_job_id") @db.VarChar(128)
+  idempotencyKey String? @map("idempotency_key") @db.VarChar(255)
+
+  requestedModel   String  @map("requested_model") @db.VarChar(128)
+  provider         String? @db.VarChar(64)
+  routingStrategy  RoutingStrategy @map("routing_strategy")
+  status           JobStatus @default(QUEUED)
+
+  // Cost is recorded on the job, not recomputed later — provider prices change
+  // and historical invoices must stay reproducible.
+  inputTokens  Int @default(0) @map("input_tokens")
+  outputTokens Int @default(0) @map("output_tokens")
+  costUsdMicros Int @default(0) @map("cost_usd_micros")
+
+  latencyMs      Int? @map("latency_ms")
+  requestPayload Json  @default("{}") @map("request_payload")
+  responsePayload Json? @map("response_payload")
+  errorCode      String? @map("error_code") @db.VarChar(64)
+  errorMessage   String? @map("error_message") @db.VarChar(2000)
+  attempts       Int     @default(0)
+
+  queuedAt    DateTime  @default(now()) @map("queued_at")
+  startedAt   DateTime? @map("started_at")
+  completedAt DateTime? @map("completed_at")
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversation Conversation? @relation(fields: [conversationId, tenantId], references: [id, tenantId], onDelete: SetNull)
+  providerAttempts ProviderAttempt[]
+
+  @@id([tenantId, id])
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, status, queuedAt])
+  @@index([tenantId, conversationId])
+  @@index([queueJobId])
+  @@map("inference_jobs")
+}
+
+/// One row per provider the router tried. This is the failover audit trail
+/// and the input to the reliability score used by BALANCED routing.
+model ProviderAttempt {
+  tenantId  String @map("tenant_id") @db.Uuid
+  jobId     String @map("job_id") @db.Uuid
+  attemptNo Int    @map("attempt_no")
+
+  provider  String  @db.VarChar(64)
+  model     String  @db.VarChar(128)
+  success   Boolean
+  latencyMs Int     @map("latency_ms")
+  errorCode String? @map("error_code") @db.VarChar(64)
+  errorMessage String? @map("error_message") @db.VarChar(2000)
+  attemptAt DateTime @default(now()) @map("attempt_at")
+
+  job InferenceJob @relation(fields: [jobId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@id([tenantId, jobId, attemptNo])
+  @@index([jobId])
+  @@map("provider_attempts")
+}
+
+// ===========================================================================
+// Usage & billing
+// ===========================================================================
+
+/// Per-request usage record. The rollup below is the fast read path; this is
+/// the audit-grade source of truth. Partition by `occurredAt` once volume
+/// justifies it.
+model UsageRecord {
+  tenantId String @map("tenant_id") @db.Uuid
+  id       BigInt @default(autoincrement())
+
+  jobId   String? @map("job_id") @db.Uuid
+  model   String  @db.VarChar(128)
+  provider String @db.VarChar(64)
+  strategy RoutingStrategy @map("strategy")
+
+  inputTokens  Int @default(0) @map("input_tokens")
+  outputTokens Int @default(0) @map("output_tokens")
+  costUsdMicros Int @default(0) @map("cost_usd_micros")
+  latencyMs    Int @map("latency_ms")
+  success      Boolean @default(true)
+  errorCode    String? @map("error_code") @db.VarChar(64)
+
+  occurredAt DateTime @default(now()) @map("occurred_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, id])
+  @@index([tenantId, occurredAt])
+  @@index([tenantId, model, occurredAt])
+  @@map("usage_records")
+}
+
+/// Pre-aggregated daily totals. Written by the `usage-aggregation` worker.
+model UsageRollup {
+  tenantId String @map("tenant_id") @db.Uuid
+  day      DateTime @db.Date
+
+  model   String @db.VarChar(128)
+  provider String @db.VarChar(64)
+
+  requests       Int @default(0)
+  inputTokens    Int @default(0) @map("input_tokens")
+  outputTokens   Int @default(0) @map("output_tokens")
+  costUsdMicros  Int @default(0) @map("cost_usd_micros")
+  errorCount     Int @default(0) @map("error_count")
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, day, model])
+  @@index([tenantId, day])
+  @@map("usage_rollups")
+}
+
+// ===========================================================================
+// Reliability
+// ===========================================================================
+
+/// Deduplicates client retries. A retried POST returns the original response
+/// instead of billing the customer twice.
+model IdempotencyKey {
+  tenantId String @map("tenant_id") @db.Uuid
+  key      String @db.VarChar(255)
+  /// SHA-256 of the request body. A reused key with a different body is a
+  /// client bug and is rejected rather than silently replayed.
+  requestHash String @map("request_hash") @db.VarChar(64)
+
+  responseStatus Int?   @map("response_status")
+  responseBody   Json?  @map("response_body")
+  jobId          String? @map("job_id") @db.Uuid
+
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, key])
+  @@index([expiresAt])
+  @@map("idempotency_keys")
+}
+
+model AuditLog {
+  tenantId  String @map("tenant_id") @db.Uuid
+  id        BigInt @default(autoincrement())
+
+  actorId   String? @map("actor_id") @db.Uuid
+  actorEmail String? @map("actor_email") @db.VarChar(320)
+  action    AuditAction
+  target    String? @db.VarChar(300)
+  ipAddress String? @map("ip_address") @db.VarChar(45)
+  userAgent String? @map("user_agent") @db.VarChar(512)
+  requestId String? @map("request_id") @db.VarChar(64)
+  metadata  Json    @default("{}")
+
+  occurredAt DateTime @default(now()) @map("occurred_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, id])
+  @@index([tenantId, occurredAt])
+  @@index([tenantId, action, occurredAt])
+  @@index([actorId])
+  @@map("audit_logs")
+}

@@ -1,0 +1,95 @@
+# ===========================================================================
+# Orbitoz AI — local infrastructure
+#
+#   docker compose up -d          # start everything
+#   docker compose ps             # check health
+#   docker compose down           # stop (keep volumes)
+#   docker compose down -v        # stop and wipe all data
+#   docker compose logs -f redis  # tail a service
+#
+# Credentials below are DEVELOPMENT ONLY. Production uses managed Postgres
+# (or RDS/Aurora/Cloud SQL) and managed Redis, injected via the platform secret
+# store — never via a committed compose file.
+# ===========================================================================
+
+name: orbitoz-ai
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: orbitoz-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: orbitoz
+      POSTGRES_PASSWORD: orbitoz_dev_password
+      POSTGRES_DB: orbitoz_db
+      # Deterministic collation so index behaviour matches production.
+      POSTGRES_INITDB_ARGS: '--locale=C --encoding=UTF8'
+    ports:
+      - '5432:5432'
+    volumes:
+      # PostgreSQL 18 relocated its data directory. The official image now
+      # expects a single mount at /var/lib/postgresql, which keeps PGDATA in a
+      # version-specific subdirectory so `pg_upgrade --link` works on upgrade.
+      # Mounting /var/lib/postgresql/data on PG18 makes the container refuse to
+      # start — this path is deliberate.
+      - postgres-data:/var/lib/postgresql
+      # Auto-create the shadow database Prisma Migrate needs for drift detection.
+      - ./scripts/docker/init-databases.sh:/docker-entrypoint-initdb.d/00-init-databases.sh:ro
+    command:
+      - postgres
+      - -c
+      - max_connections=200
+      - -c
+      - shared_buffers=256MB
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U orbitoz -d orbitoz_db']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    networks: [orbitoz]
+
+  redis:
+    image: redis:8-alpine
+    container_name: orbitoz-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis-data:/data
+    command:
+      - redis-server
+      - --appendonly
+      - 'yes'
+      - --maxmemory-policy
+      - noeviction
+      # BullMQ requires this to be >= 1 or blocking pop commands are disabled.
+      - --latency-monitor-threshold
+      - '100'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [orbitoz]
+
+  mailpit:
+    image: axllent/mailpit:v1.31
+    container_name: orbitoz-mailpit
+    restart: unless-stopped
+    ports:
+      - '1025:1025' # SMTP
+      - '8025:8025' # Web UI — http://localhost:8025
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+    networks: [orbitoz]
+
+volumes:
+  postgres-data:
+  redis-data:
+
+networks:
+  orbitoz:
+    driver: bridge

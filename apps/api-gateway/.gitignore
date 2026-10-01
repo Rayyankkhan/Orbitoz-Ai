@@ -1,0 +1,9 @@
+# Build output
+dist
+.next
+.turbo
+*.tsbuildinfo
+
+# Local env — never commit a real .env
+.env
+.env.local

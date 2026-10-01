@@ -1,0 +1,38 @@
+{
+  "name": "@orbitoz/api-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node --enable-source-maps dist/main.js",
+    "dev": "concurrently -k -n tsc,api -c blue,green \"tsc -p tsconfig.json --watch --preserveWatchOutput\" \"node --watch --enable-source-maps dist/main.js\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "@orbitoz/config": "workspace:*",
+    "@orbitoz/database": "workspace:*",
+    "@orbitoz/shared-types": "workspace:*",
+    "@nestjs/common": "catalog:",
+    "@nestjs/core": "catalog:",
+    "@nestjs/platform-express": "catalog:",
+    "helmet": "catalog:",
+    "reflect-metadata": "catalog:",
+    "rxjs": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/express": "catalog:",
+    "concurrently": "catalog:",
+    "eslint": "catalog:",
+    "rimraf": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

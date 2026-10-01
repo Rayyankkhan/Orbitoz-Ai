@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "display": "Orbitoz NestJS",
+  "extends": "./base.json",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "moduleDetection": "force",
+
+    /* Required by NestJS dependency injection + ValidationPipe metadata. */
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+
+    /* NestJS 12 is ESM-only. `useDefineForClassFields: false` keeps legacy
+       decorator semantics for `@Inject()`-ed class properties, which otherwise
+       break under ES2022 [[Define]] field semantics. */
+    "useDefineForClassFields": false,
+
+    "composite": true,
+    "incremental": true,
+    "rootDir": "src",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo"
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/**/*.test.ts",
+    "src/**/*.spec.ts",
+    "src/**/__tests__/**"
+  ]
+}

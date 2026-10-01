@@ -1,0 +1,89 @@
+{
+  "name": "@orbitoz/database",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Prisma schema, generated client and tenant-aware NestJS provider for Orbitoz AI",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./enums": {
+      "types": "./dist/exports/enums.d.ts",
+      "default": "./dist/exports/enums.js"
+    },
+    "./types": {
+      "types": "./dist/exports/models.d.ts",
+      "default": "./dist/exports/models.js"
+    },
+    "./client": {
+      "types": "./dist/generated/prisma/client.d.ts",
+      "default": "./dist/generated/prisma/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "prisma"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "generate": "prisma generate",
+    "format": "prisma format",
+    "validate": "prisma validate",
+    "migrate:dev": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "migrate:status": "prisma migrate status",
+    "migrate:reset": "prisma migrate reset --force",
+    "migrate:diff": "prisma migrate diff",
+    "studio": "prisma studio",
+    "seed": "node --env-file-if-exists=../../.env --import tsx prisma/seed.ts",
+    "rls:apply": "prisma db execute --file prisma/rls.sql",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.scripts.json",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run",
+    "clean": "rimraf dist src/generated .turbo *.tsbuildinfo",
+    "verify:tenancy": "pnpm run build && tsx --env-file=../../.env scripts/verify-tenancy.ts",
+    "roles:apply": "prisma db execute --file prisma/roles.sql",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@orbitoz/shared-types": "workspace:*",
+    "@prisma/adapter-pg": "catalog:",
+    "@prisma/client": "catalog:",
+    "dotenv": "catalog:",
+    "pg": "catalog:"
+  },
+  "devDependencies": {
+    "@orbitoz/config": "workspace:*",
+    "@nestjs/common": "catalog:",
+    "@nestjs/core": "catalog:",
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "eslint": "catalog:",
+    "prisma": "catalog:",
+    "reflect-metadata": "catalog:",
+    "rimraf": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "@nestjs/common": ">=11.0.0",
+    "@nestjs/core": ">=11.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@nestjs/common": {
+      "optional": true
+    },
+    "@nestjs/core": {
+      "optional": true
+    }
+  }
+}

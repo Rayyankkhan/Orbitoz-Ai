@@ -1,0 +1,17 @@
+@import 'tailwindcss';
+
+/* Tailwind 4 defines theme values in CSS rather than a JS config. */
+@theme {
+  --color-surface: oklch(0.99 0 0);
+  --color-ink: oklch(0.21 0.01 260);
+}
+
+:root {
+  color-scheme: light dark;
+}
+
+body {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}

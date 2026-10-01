@@ -1,0 +1,54 @@
+{
+  "name": "@orbitoz/shared-types",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Framework-agnostic TypeScript contracts shared by every Orbitoz AI service",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./enums": {
+      "types": "./dist/enums/index.d.ts",
+      "default": "./dist/enums/index.js"
+    },
+    "./dtos": {
+      "types": "./dist/dtos/index.d.ts",
+      "default": "./dist/dtos/index.js"
+    },
+    "./tenancy": {
+      "types": "./dist/tenancy/index.d.ts",
+      "default": "./dist/tenancy/index.js"
+    },
+    "./queues": {
+      "types": "./dist/queues/index.d.ts",
+      "default": "./dist/queues/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit false --emitDeclarationOnly",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run --passWithNoTests",
+    "clean": "rimraf dist .turbo *.tsbuildinfo",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@orbitoz/config": "workspace:*",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "rimraf": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

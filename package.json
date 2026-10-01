@@ -1,0 +1,48 @@
+{
+  "name": "orbitoz-ai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Orbitoz AI \u2014 multi-tenant B2B AI SaaS platform monorepo",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=22.14.0",
+    "pnpm": ">=10.0.0"
+  },
+  "packageManager": "pnpm@10.34.6",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "lint:fix": "turbo run lint -- --fix",
+    "format": "prettier --write \"**/*.{ts,tsx,mts,cts,js,mjs,cjs,json,md,yaml,yml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,mts,cts,js,mjs,cjs,json,md,yaml,yml}\"",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "clean": "turbo run clean && rm -rf node_modules/.cache/turbo .turbo",
+    "db:generate": "pnpm --filter @orbitoz/database generate",
+    "db:format": "pnpm --filter @orbitoz/database format",
+    "db:validate": "pnpm --filter @orbitoz/database validate",
+    "db:migrate": "pnpm --filter @orbitoz/database migrate:dev",
+    "db:migrate:deploy": "pnpm --filter @orbitoz/database migrate:deploy",
+    "db:migrate:status": "pnpm --filter @orbitoz/database migrate:status",
+    "db:reset": "pnpm --filter @orbitoz/database migrate:reset",
+    "db:seed": "pnpm --filter @orbitoz/database seed",
+    "db:studio": "pnpm --filter @orbitoz/database studio",
+    "db:rls": "pnpm --filter @orbitoz/database rls:apply",
+    "scaffold": "node scripts/scaffold.mjs",
+    "check": "pnpm run format:check && pnpm run lint && pnpm run typecheck",
+    "verify": "pnpm run db:generate && pnpm run lint && pnpm run typecheck && pnpm run build",
+    "db:roles": "pnpm --filter @orbitoz/database roles:apply",
+    "db:verify": "pnpm --filter @orbitoz/database verify:tenancy",
+    "db:setup": "pnpm db:migrate && pnpm db:roles && pnpm db:rls && pnpm --filter @orbitoz/database seed"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "prettier": "catalog:",
+    "rimraf": "catalog:",
+    "turbo": "catalog:",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:"
+  }
+}

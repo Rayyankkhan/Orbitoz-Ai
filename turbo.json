@@ -1,0 +1,57 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "ui": "tui",
+  "globalDependencies": ["**/.env.*local", "pnpm-lock.yaml"],
+  "globalEnv": ["NODE_ENV", "CI", "VERCEL", "VERCEL_ENV", "VERCEL_URL"],
+  "globalPassThroughEnv": [
+    "SENTRY_*",
+    "OTEL_EXPORTER_*",
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "NO_PROXY"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": ["generate", "^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*", "!**/*.test.ts", "!**/*.spec.ts"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
+      "env": ["NODE_ENV", "NEXT_PUBLIC_*", "DATABASE_URL", "REDIS_URL"]
+    },
+    "typecheck": {
+      "dependsOn": ["generate", "^build"],
+      "outputs": []
+    },
+    "lint": {
+      "dependsOn": ["generate", "^build"],
+      "outputs": []
+    },
+    "test": {
+      "dependsOn": ["generate", "^build"],
+      "outputs": ["coverage/**"]
+    },
+    "dev": {
+      "dependsOn": ["generate", "^build"],
+      "cache": false,
+      "persistent": true
+    },
+    "clean": {
+      "cache": false
+    },
+
+    "generate": {
+      "dependsOn": [],
+      "cache": false,
+      "outputs": ["src/generated/**"]
+    },
+    "db:migrate:deploy": {
+      "dependsOn": ["generate"],
+      "cache": false,
+      "env": ["DATABASE_URL", "SHADOW_DATABASE_URL"]
+    },
+    "db:seed": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "env": ["DATABASE_URL"]
+    }
+  }
+}

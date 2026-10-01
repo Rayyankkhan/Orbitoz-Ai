@@ -1,0 +1,18 @@
+{
+  "extends": "@orbitoz/config/tsconfig/nestjs.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": ".",
+    "lib": ["ES2023"],
+    "types": ["node"]
+  },
+  "//": "Type-aware linting only — never used to build. `tsconfig.json` excludes `*.test.ts` so they stay out of `dist/`, and `tsconfig.scripts.json` excludes them for the same reason. Both would leave the test files and `vitest.config.ts` outside every project, so typescript-eslint cannot parse them and lint fails with a parsing error rather than reporting anything. This project exists only to give the linter a program that covers them.",
+  "include": [
+    "src/**/*.ts",
+    "prisma.config.ts",
+    "prisma/**/*.ts",
+    "scripts/**/*.ts",
+    "vitest.config.ts"
+  ],
+  "exclude": ["node_modules", "dist"]
+}
