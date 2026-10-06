@@ -29,8 +29,12 @@ catalog:
   # Unit tests. Vitest over Jest: the workspace is native ESM and the backend
   # apps need emitDecoratorMetadata for Nest DI, which Jest's TypeScript
   # transform does not produce.
-  vitest: ^5.0.2
-  '@vitest/coverage-v8': ^5.0.2
+  # Pinned exactly, not caret: `@vitest/coverage-v8` declares an exact peer on
+  # the vitest version (`5.0.3` wants vitest `5.0.3`), so a caret here lets the
+  # two drift apart on a fresh lockfile and prints an unmet-peer warning on every
+  # install.
+  vitest: 5.0.2
+  '@vitest/coverage-v8': 5.0.2
 
   # --- NestJS --------------------------------------------------------------
   '@nestjs/common': ^12.1.1
@@ -57,6 +61,13 @@ catalog:
   helmet: ^8.3.0
   compression: ^1.8.1
   '@types/compression': ^1.8.1
+
+  # --- Auth ---------------------------------------------------------------
+  # `jose` for JWT sign/verify: a WebCrypto-only implementation, so it needs no
+  # native module and no OpenSSL headers. jsonwebtoken is CommonJS and pulls in
+  # a transitive dependency tree; this workspace is native ESM, so a CJS-only
+  # signing library is a friction point for no benefit.
+  jose: ^6.2.12
 
   # --- Validation / schema -------------------------------------------------
   zod: ^4.6.5

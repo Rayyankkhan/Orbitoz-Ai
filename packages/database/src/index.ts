@@ -25,7 +25,7 @@ export { Prisma, PrismaClient } from './generated/prisma/client.js';
 /* ---- Tenant-aware Nest integration ------------------------------------ */
 export { PrismaService } from './client/prisma.service.js';
 export { DatabaseModule } from './client/prisma.module.js';
-export { PRISMA_OPTIONS } from './client/prisma.tokens.js';
+export { PRISMA_OPTIONS, TENANT_TABLE_REGISTRY } from './client/prisma.tokens.js';
 
 /* ---- Explicit client construction (scripts, workers, tests) ----------- */
 export {

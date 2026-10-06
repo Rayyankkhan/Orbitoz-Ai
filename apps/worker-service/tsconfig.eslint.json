@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "@orbitoz/config/tsconfig/nestjs.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": ".",
+    "lib": ["ES2023"],
+    "types": ["node"]
+  },
+  "//": "Type-aware linting only — never used to build. `tsconfig.json` excludes `*.test.ts` and includes only `src/`, so it would leave the integration suite in `test/` and both Vitest configs outside every TypeScript project. typescript-eslint's project service could then not parse them and lint would fail with a parsing error instead of reporting anything. This project exists only to give the linter a program that covers the tests and `vitest.config.ts`.",
+  "include": [
+    "src/**/*.ts",
+    "test/**/*.ts",
+    "vitest.config.ts",
+    "vitest.integration.config.ts"
+  ],
+  "exclude": ["node_modules", "dist"]
+}

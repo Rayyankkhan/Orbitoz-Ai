@@ -10,12 +10,14 @@
     "dev": "concurrently -k -n tsc,api -c blue,green \"tsc -p tsconfig.json --watch --preserveWatchOutput\" \"node --watch --enable-source-maps dist/main.js\"",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
-    "test": "vitest run --passWithNoTests",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
+    "test": "vitest run --passWithNoTests --config vitest.config.ts",
+    "test:watch": "vitest --config vitest.config.ts",
+    "test:coverage": "vitest run --coverage --config vitest.config.ts",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "clean": "rimraf dist"
   },
   "dependencies": {
+    "@orbitoz/ai-engine": "workspace:*",
     "@orbitoz/config": "workspace:*",
     "@orbitoz/database": "workspace:*",
     "@orbitoz/shared-types": "workspace:*",
@@ -31,6 +33,7 @@
   },
   "devDependencies": {
     "@types/express": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
     "concurrently": "catalog:",
     "eslint": "catalog:",
     "rimraf": "catalog:",

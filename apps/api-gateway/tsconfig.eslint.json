@@ -1,0 +1,17 @@
+{
+  "extends": "@orbitoz/config/tsconfig/nestjs.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": ".",
+    "lib": ["ES2023"],
+    "types": ["node"]
+  },
+  "//": "Every TypeScript file this package owns except those the build compiles: type-aware linting, and the `typecheck:test` gate. `tsconfig.json` excludes `*.test.ts` so they stay out of `dist/`, which would otherwise leave the test suites outside every TypeScript project — typescript-eslint's project service could not parse them and lint would fail with a parsing error instead of reporting anything. This project exists so the linter has a program covering them, and so nothing in a test file can rot unchecked.",
+  "include": [
+    "src/**/*.ts",
+    "test/**/*.ts",
+    "vitest.config.ts",
+    "vitest.integration.config.ts"
+  ],
+  "exclude": ["node_modules", "dist"]
+}

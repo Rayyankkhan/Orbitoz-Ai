@@ -32,6 +32,8 @@ domain.
 
 Tenant identity is not authority. `ResolvedTenant` carries the tenant's id, slug,
 name, status, and plan — nothing about what a given caller may do with them.
+`JwtAuthGuard` runs after this and checks the two separately; see
+[auth.md](auth.md).
 
 ## Writing a handler
 
@@ -78,6 +80,7 @@ startup turns a silent data-availability bug into a visible deploy failure.
 | Command      | Purpose                                                     |
 | ------------ | ----------------------------------------------------------- |
 | `pnpm dev`   | Watch mode. `tsc --watch` emits JS, `node --watch` runs it. |
+| `pnpm test`  | Unit tests (Vitest)                                         |
 | `pnpm build` | Typecheck and compile to `dist/`                            |
 | `pnpm start` | Run the compiled output                                     |
 
@@ -98,5 +101,7 @@ src/
     tenant.middleware.ts     resolve Host → tenant, publish scope
     tenant.resolver.ts       subdomain lookup, cached
     tenant-transaction.ts    the per-unit-of-work transaction
+    request-locals.ts        typed readers for response.locals
+  auth/                sign-in, sessions, and the global JWT guard — see auth.md
   health/              liveness + DB round-trip
 ```

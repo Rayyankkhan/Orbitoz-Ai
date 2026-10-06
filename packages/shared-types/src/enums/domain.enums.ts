@@ -61,7 +61,19 @@ export const TENANT_SERVABLE_STATUSES: readonly TenantStatus[] = [
   TenantStatus.Active,
 ];
 
-/** Upstream AI provider identifiers. Extend by adding to the Prisma enum. */
+/**
+ * Upstream AI provider identifiers.
+ *
+ * Not a Prisma enum — `provider_models.provider` is a `VarChar(64)`, so a new
+ * provider needs no migration. That is deliberate: the catalogue is seeded data,
+ * not a schema constraint, and a migration to add one would block a tenant's
+ * self-hosted model until a release shipped.
+ *
+ * `LOCAL` was added because the seed catalogue already contained a self-hosted
+ * `local` model that no enum member matched, making it unroutable: plan
+ * entitlements list `allowedProviders`, a lookup of `'LOCAL'` missed every plan,
+ * and the model was filtered out of every candidate list.
+ */
 export const AiProvider = {
   OpenAI: 'OPENAI',
   Anthropic: 'ANTHROPIC',
@@ -71,6 +83,8 @@ export const AiProvider = {
   AzureOpenAI: 'AZURE_OPENAI',
   Bedrock: 'BEDROCK',
   VertexAI: 'VERTEX_AI',
+  /** Self-hosted, OpenAI-compatible (vLLM, llama.cpp, Ollama). Always tenant-specific. */
+  Local: 'LOCAL',
 } as const;
 export type AiProvider = (typeof AiProvider)[keyof typeof AiProvider];
 
@@ -87,6 +101,17 @@ export type AiCapability =
 /** Lifecycle of a single routed request. Persisted on the Job row. */
 export const JobStatus = {
   Queued: 'QUEUED',
+  /**
+   * Parked pending a human decision.
+   *
+   * Not terminal: an approved job moves on to `QUEUED`, and a rejected one to
+   * `CANCELED`, so a job sitting here is still live. That matters because
+   * `InferenceStore.startJob` refuses to restart a terminal job — if this were
+   * terminal the resume path would be rejected by its own guard.
+   *
+   * No queue job exists in this state. The approval webhook creates it.
+   */
+  AwaitingApproval: 'AWAITING_APPROVAL',
   Running: 'RUNNING',
   Succeeded: 'SUCCEEDED',
   Failed: 'FAILED',
@@ -100,6 +125,38 @@ export const TERMINAL_JOB_STATUSES: readonly JobStatus[] = [
   JobStatus.Failed,
   JobStatus.Canceled,
   JobStatus.DeadLettered,
+];
+
+/**
+ * Lifecycle of one human decision.
+ *
+ * `EXPIRED` is a decision nobody made. An approval request carries a deadline,
+ * and past it the request stops being a live question — the job it gates is
+ * canceled and any later click is refused. Recording that as a status rather
+ * than leaving the row `PENDING` is what makes "why did this never run?"
+ * answerable without a log search.
+ */
+export const ApprovalStatus = {
+  Pending: 'PENDING',
+  Approved: 'APPROVED',
+  Rejected: 'REJECTED',
+  Expired: 'EXPIRED',
+} as const;
+export type ApprovalStatus = (typeof ApprovalStatus)[keyof typeof ApprovalStatus];
+
+/** The only two things an approver may do. Absence of a third is deliberate. */
+export const APPROVAL_ACTIONS = ['APPROVE', 'REJECT'] as const;
+export type ApprovalAction = (typeof APPROVAL_ACTIONS)[number];
+
+export function isApprovalAction(value: unknown): value is ApprovalAction {
+  return typeof value === 'string' && (APPROVAL_ACTIONS as readonly string[]).includes(value);
+}
+
+/** A decision an approval request has already reached. */
+export const TERMINAL_APPROVAL_STATUSES: readonly ApprovalStatus[] = [
+  ApprovalStatus.Approved,
+  ApprovalStatus.Rejected,
+  ApprovalStatus.Expired,
 ];
 
 /** How the router picked a provider for a request. */
@@ -135,8 +192,12 @@ export const PLAN_ENTITLEMENTS: Record<SubscriptionPlan, PlanEntitlement> = {
     maxApiKeys: 2,
     maxRpm: 10,
     maxConcurrentJobs: 2,
-    allowedProviders: [AiProvider.OpenAI, AiProvider.Google],
-    allowedStrategies: [RoutingStrategy.CostOptimized, RoutingStrategy.LatencyOptimized],
+    allowedProviders: [AiProvider.OpenAI, AiProvider.Google, AiProvider.Local],
+    allowedStrategies: [
+      RoutingStrategy.CostOptimized,
+      RoutingStrategy.LatencyOptimized,
+      RoutingStrategy.Balanced,
+    ],
     dataRetentionDays: 7,
   },
   [SubscriptionPlan.Starter]: {
@@ -145,7 +206,12 @@ export const PLAN_ENTITLEMENTS: Record<SubscriptionPlan, PlanEntitlement> = {
     maxApiKeys: 10,
     maxRpm: 60,
     maxConcurrentJobs: 10,
-    allowedProviders: [AiProvider.OpenAI, AiProvider.Anthropic, AiProvider.Google],
+    allowedProviders: [
+      AiProvider.OpenAI,
+      AiProvider.Anthropic,
+      AiProvider.Google,
+      AiProvider.Local,
+    ],
     allowedStrategies: [
       RoutingStrategy.CostOptimized,
       RoutingStrategy.LatencyOptimized,
@@ -165,6 +231,7 @@ export const PLAN_ENTITLEMENTS: Record<SubscriptionPlan, PlanEntitlement> = {
       AiProvider.Google,
       AiProvider.Mistral,
       AiProvider.Cohere,
+      AiProvider.Local,
     ],
     allowedStrategies: [
       RoutingStrategy.CostOptimized,

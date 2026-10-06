@@ -20,4 +20,5 @@ export {
   ApiKeyScope,
   AuditAction,
   InvitationStatus,
+  ApprovalStatus,
 } from '../generated/prisma/enums.js';

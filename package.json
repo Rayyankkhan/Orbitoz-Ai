@@ -18,6 +18,7 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,mts,cts,js,mjs,cjs,json,md,yaml,yml}\"",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
+    "test:integration": "turbo run test:integration",
     "clean": "turbo run clean && rm -rf node_modules/.cache/turbo .turbo",
     "db:generate": "pnpm --filter @orbitoz/database generate",
     "db:format": "pnpm --filter @orbitoz/database format",

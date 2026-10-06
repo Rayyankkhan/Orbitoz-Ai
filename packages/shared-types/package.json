@@ -24,6 +24,10 @@
       "types": "./dist/tenancy/index.d.ts",
       "default": "./dist/tenancy/index.js"
     },
+    "./approvals": {
+      "types": "./dist/approvals/index.d.ts",
+      "default": "./dist/approvals/index.js"
+    },
     "./queues": {
       "types": "./dist/queues/index.d.ts",
       "default": "./dist/queues/index.js"
@@ -46,6 +50,7 @@
   "devDependencies": {
     "@orbitoz/config": "workspace:*",
     "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
     "eslint": "catalog:",
     "rimraf": "catalog:",
     "typescript": "catalog:",

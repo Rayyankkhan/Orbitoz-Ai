@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "@orbitoz/config/tsconfig/library.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": ".",
+    "lib": ["ES2023"],
+    "types": ["node"]
+  },
+  "//": "Type-aware linting only — never used to build. `tsconfig.json` excludes `*.test.ts` so they stay out of `dist/`, which would leave the contract tests and `vitest.config.ts` outside every TypeScript project. typescript-eslint's project service only discovers tsconfig.json, so it could not parse those files and lint failed with a parsing error rather than reporting anything. This project exists only to give the linter a program that covers them.",
+  "include": ["src/**/*.ts", "vitest.config.ts"],
+  "exclude": ["node_modules", "dist"]
+}

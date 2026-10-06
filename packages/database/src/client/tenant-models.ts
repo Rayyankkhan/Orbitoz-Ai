@@ -43,6 +43,7 @@ export const TENANT_SCOPED_MODELS: ReadonlySet<string> = new Set([
   'UsageRollup',
   'IdempotencyKey',
   'AuditLog',
+  'ApprovalRequest',
 ]);
 
 /** Models the extension must never touch. */

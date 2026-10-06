@@ -20,5 +20,8 @@ export * from './dtos/index.js';
 /* Multi-tenancy contracts and resolution rules */
 export * from './tenancy/index.js';
 
+/* Approval link addressing and signature protocol */
+export * from './approvals/index.js';
+
 /* Gateway <-> worker queue contracts */
 export * from './queues/index.js';

@@ -36,10 +36,11 @@
     "clean": "rimraf .turbo",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage --passWithNoTests"
   },
   "devDependencies": {
     "@eslint/js": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
     "eslint": "catalog:",
     "eslint-config-next": "catalog:",
     "eslint-config-prettier": "catalog:",

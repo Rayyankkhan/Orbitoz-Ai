@@ -109,7 +109,7 @@ provisioned by the platform, not by a checked-in script.
 | `pnpm db:roles`                            | Apply `roles.sql`                          |
 | `pnpm db:rls`                              | Apply `rls.sql`                            |
 | `pnpm db:seed`                             | Idempotent development seed                |
-| `pnpm db:verify`                           | 21-check tenant isolation proof            |
+| `pnpm db:verify`                           | 30-check tenant isolation proof            |
 
 ## Two TypeScript projects
 

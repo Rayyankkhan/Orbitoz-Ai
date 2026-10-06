@@ -1,6 +1,9 @@
 import type { ApiKeyId, RequestId, TenantId, UserId } from '../core/branded.js';
 import type {
   AiProvider,
+  ApprovalAction,
+  ApprovalStatus,
+  JobStatus,
   RoutingStrategy,
   SubscriptionPlan,
   TenantRole,
@@ -232,6 +235,103 @@ export interface HealthCheckResult {
   readonly status: 'up' | 'down';
   readonly latencyMs?: number;
   readonly message?: string;
+}
+
+/* ========================================================================== */
+/* Human-in-the-loop approvals                                                 */
+/* ========================================================================== */
+
+/**
+ * What the approver is being asked to authorise.
+ *
+ * The row is created before anyone is asked, so the approval view is rendered
+ * from durable state rather than from a link the sender could have embellished.
+ * `model` and `maxCostUsd` are the two fields a person actually decides on, so
+ * they are lifted out of the queue payload instead of being buried in it.
+ */
+export interface ApprovalSummary {
+  readonly approvalId: string;
+  readonly jobId: string;
+  readonly tenantId: TenantId;
+  readonly status: ApprovalStatus;
+  readonly model: string;
+  readonly strategy: RoutingStrategy;
+  readonly maxCostUsd: number | null;
+  readonly requestedBy: UserId;
+  readonly requestedAt: string;
+  readonly expiresAt: string;
+  readonly decidedAt: string | null;
+  readonly decisionNote: string | null;
+  /** True once an approved request's queue job is confirmed enqueued. */
+  readonly dispatched: boolean;
+}
+
+/** The `GET /approvals/:token` response: everything needed to render a page. */
+export interface ApprovalView {
+  readonly approval: ApprovalSummary;
+  /** What a click on each button must POST. Pre-signed, so the page needs no JS. */
+  readonly actions: {
+    readonly approve: ApprovalActionGrant;
+    readonly reject: ApprovalActionGrant;
+  };
+}
+
+/**
+ * A pre-signed authorisation for one action on one approval.
+ *
+ * `timestamp` and `signature` are what the webhook re-verifies. They travel in
+ * the page rather than in a header because the approver is a person in a
+ * browser: there is no client-side secret to compute a fresh signature with, so
+ * the signature is issued once, for one action, with a bounded lifetime.
+ */
+export interface ApprovalActionGrant {
+  readonly action: ApprovalAction;
+  readonly timestamp: string;
+  readonly signature: string;
+}
+
+/** The `POST /approvals/:token` request body. */
+export interface DecideApprovalRequest {
+  readonly action: ApprovalAction;
+  readonly timestamp: string;
+  readonly signature: string;
+  readonly note?: string;
+}
+
+/**
+ * The `POST /approvals/:token` response.
+ *
+ * `outcome` distinguishes a decision this call recorded from one that was
+ * already there. A repeated click gets 200 with `already_decided`, never a
+ * conflict: a webhook sender that retries after a lost response must not be told
+ * it did something wrong when in fact the work is running.
+ */
+export interface ApprovalDecisionResult {
+  readonly approval: ApprovalSummary;
+  readonly outcome: 'recorded' | 'already_decided';
+  readonly jobStatus: JobStatus;
+  /** True when this call enqueued the job. False on a replay. */
+  readonly dispatched: boolean;
+  readonly requestId: RequestId;
+}
+
+/** The response to creating an approval request. */
+export interface ApprovalRequestCreated {
+  readonly approvalId: string;
+  readonly jobId: string;
+  readonly token: string;
+  readonly status: ApprovalStatus;
+  readonly expiresAt: string;
+  /**
+   * The tenant-scoped URL the approver opens.
+   *
+   * Relative rather than absolute on purpose: the gateway does not know its own
+   * public origin, and an absolute URL assembled from an untrusted `Host` header
+   * is a redirect primitive pointed at a phishing site.
+   */
+  readonly approvalPath: string;
+  readonly viewPath: string;
+  readonly requestId: RequestId;
 }
 
 /* ========================================================================== */

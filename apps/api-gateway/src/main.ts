@@ -13,6 +13,7 @@ import { Logger } from '@nestjs/common';
 import { AppModule } from './app.module.js';
 import { loadEnv } from './config/env.js';
 import { HttpExceptionFilter } from './common/http-exception.filter.js';
+import { AuthErrorFilter } from './auth/auth-error.filter.js';
 
 async function main(): Promise<void> {
   const logger = new Logger('Bootstrap');
@@ -26,7 +27,7 @@ async function main(): Promise<void> {
     credentials: true,
     exposedHeaders: ['x-request-id'],
   });
-  app.useGlobalFilters(new HttpExceptionFilter());
+  app.useGlobalFilters(new HttpExceptionFilter(), new AuthErrorFilter());
   // Nest's shutdown hooks let in-flight requests finish before the process
   // exits, so a deploy does not cut off an in-flight inference request.
   app.enableShutdownHooks();

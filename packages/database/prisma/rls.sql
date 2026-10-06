@@ -67,7 +67,7 @@ DECLARE
     'tenants', 'memberships', 'invitations', 'subscriptions',
     'api_keys', 'tenant_providers', 'conversations', 'inference_jobs',
     'provider_attempts', 'usage_records', 'usage_rollups',
-    'idempotency_keys', 'audit_logs'
+    'idempotency_keys', 'audit_logs', 'approval_requests'
   ];
 BEGIN
   FOREACH t IN ARRAY tenant_tables LOOP
@@ -262,6 +262,19 @@ CREATE POLICY rls_idempotency_keys_all ON public.idempotency_keys
 -- audit_logs
 DROP POLICY IF EXISTS rls_audit_logs_all ON public.audit_logs;
 CREATE POLICY rls_audit_logs_all ON public.audit_logs
+  FOR ALL
+  USING (tenant_id = app_current_tenant())
+  WITH CHECK (tenant_id = app_current_tenant());
+
+-- approval_requests
+--
+-- Note the token column is NOT excluded. An approver's capability is useless
+-- across tenants only if the row itself is invisible across tenants, and this
+-- policy is what makes that true: the public webhook resolves its token inside
+-- a tenant-pinned transaction, so presenting another tenant's token yields no
+-- row rather than a row that fails a comparison later in application code.
+DROP POLICY IF EXISTS rls_approval_requests_all ON public.approval_requests;
+CREATE POLICY rls_approval_requests_all ON public.approval_requests
   FOR ALL
   USING (tenant_id = app_current_tenant())
   WITH CHECK (tenant_id = app_current_tenant());

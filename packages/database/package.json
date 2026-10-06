@@ -66,6 +66,7 @@
     "@nestjs/core": "catalog:",
     "@types/node": "catalog:",
     "@types/pg": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
     "eslint": "catalog:",
     "prisma": "catalog:",
     "reflect-metadata": "catalog:",

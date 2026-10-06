@@ -12,7 +12,7 @@ making that class of mistake impossible, or at least loud.
 
 ## Stack
 
-- **pnpm workspaces** + **Turborepo** — 3 apps, 3 libraries
+- **pnpm workspaces** + **Turborepo** — 3 apps, 4 libraries
 - **PostgreSQL 18** with Row Level Security, enforced by a non-owner role
 - **NestJS** (API gateway), **BullMQ** (worker), **Next.js** (web)
 - **Prisma 7** with the `pg` adapter — no Rust query engine
@@ -23,9 +23,10 @@ making that class of mistake impossible, or at least loud.
 ```
 apps/
   api-gateway/      NestJS HTTP edge: tenant resolution, auth, request tracing
-  worker-service/   BullMQ consumer for inference jobs
+  worker-service/   BullMQ consumer for inference jobs; runs the AI engine
   web/              Next.js app
 packages/
+  ai-engine/        Provider routing, failover, structured output, workflows
   config/           Shared tsconfigs and ESLint presets (no runtime code)
   database/         Schema, migrations, RLS SQL, tenant-scoped Prisma client
   shared-types/     Branded IDs, enums, DTOs, queue contracts
@@ -45,7 +46,7 @@ docker compose up -d       # postgres, redis, mailpit
 pnpm install
 pnpm db:setup               # migrate -> roles -> RLS -> seed
 pnpm verify                 # generate, lint, typecheck, build
-pnpm db:verify              # prove tenants are isolated (21 checks)
+pnpm db:verify              # prove tenants are isolated (30 checks)
 ```
 
 `pnpm db:setup` seeds a demo tenant:
@@ -62,15 +63,16 @@ not, add `127.0.0.1 acme.localhost` to `/etc/hosts`.
 
 ## Commands
 
-| Command                     | Purpose                                                  |
-| --------------------------- | -------------------------------------------------------- |
-| `pnpm verify`               | generate → lint → typecheck → build. The gate.           |
-| `pnpm check`                | format check + lint + typecheck. Faster pre-commit gate. |
-| `pnpm db:setup`             | Full database bootstrap from empty.                      |
-| `pnpm db:verify`            | End-to-end tenant isolation proof.                       |
-| `pnpm db:studio`            | Prisma Studio.                                           |
-| `pnpm scaffold -- <target>` | Regenerate app scaffolding. `--dry-run` to preview.      |
-| `pnpm dev`                  | Run all apps in watch mode.                              |
+| Command                     | Purpose                                                           |
+| --------------------------- | ----------------------------------------------------------------- |
+| `pnpm verify`               | generate → lint → typecheck → build. The gate.                    |
+| `pnpm check`                | format check + lint + typecheck. Faster pre-commit gate.          |
+| `pnpm db:setup`             | Full database bootstrap from empty.                               |
+| `pnpm db:verify`            | End-to-end tenant isolation proof.                                |
+| `pnpm test:integration`     | Live-Redis and live-Postgres tests. Needs `docker compose up -d`. |
+| `pnpm db:studio`            | Prisma Studio.                                                    |
+| `pnpm scaffold -- <target>` | Regenerate app scaffolding. `--dry-run` to preview.               |
+| `pnpm dev`                  | Run all apps in watch mode.                                       |
 
 Database scripts require `DIRECT_DATABASE_URL` (the owner role). Application
 services use `DATABASE_URL` (the restricted role). See
@@ -101,6 +103,12 @@ before changing anything that touches a query.
 
 - [Architecture overview](docs/architecture/overview.md)
 - [Multi-tenancy and RLS](docs/architecture/multi-tenancy.md)
+- [Authentication](docs/architecture/authentication.md)
 - [API gateway](docs/modules/api-gateway.md)
+- [Auth module](docs/modules/auth.md)
 - [Worker service](docs/modules/worker-service.md)
+- [Module 03 — BullMQ worker](docs/MODULE_03_BULLMQ_WORKER.md)
+- [Module 04 — AI orchestration](docs/MODULE_04_AI_ORCHESTRATION.md)
+- [Module 05 — Human-in-the-loop approvals](docs/MODULE_05_HUMAN_APPROVAL.md)
 - [Database package](docs/modules/database.md)
+- [Roadmap](ROADMAP.md) — module status and carried-forward known issues

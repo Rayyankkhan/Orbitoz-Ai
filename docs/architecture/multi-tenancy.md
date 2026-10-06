@@ -163,17 +163,21 @@ outside it would read the wrong ambient store.
 
 ## Verifying it
 
-`pnpm db:verify` runs 21 checks against a live database as `orbitoz_app`:
+`pnpm db:verify` runs 30 checks against a live database as `orbitoz_app`:
 
 1. Every model in the schema is classified tenant-scoped or global
 2. Two tenants, created with no cross-visibility
 3. Extension scoping — each sees exactly its own rows
-4. RLS — reads, writes, and updates are all filtered; a cross-tenant write fails
+4. An unpinned query **throws** rather than returning zero rows; a create naming a
+   foreign `tenantId` is rejected
+5. Every RLS-protected tenant table is registered, and nothing is registered
+   without a policy
+6. RLS — reads, writes, and updates are all filtered; a cross-tenant write fails
    with `42501`
-5. Tenant resolution works under enforcement
-6. An unpinned query **throws** rather than returning zero rows; the same query
-   inside a pinned transaction returns the row
-7. Control: the owner role sees every tenant's rows
+7. Tenant resolution works under enforcement
+8. Control: the owner role sees every tenant's rows
+9. Approval tokens — another tenant's token resolves to **no row at all**, and the
+   atomic `PENDING` claim matches one row then zero
 
 That last check matters more than it looks. Without it, a test that passes
 because RLS was never enabled looks identical to a test that passes because RLS
@@ -185,11 +189,23 @@ worked. The control proves the assertions discriminate.
    `@@unique` / `@@id` that starts with `tenantId`.
 2. Add its table to `tenant_tables` in `rls.sql`.
 3. Add its name to `TENANT_SCOPED_MODELS` in `packages/database/src/client/tenant-models.ts`.
+4. Add its **table** name to `TENANT_TABLE_REGISTRY` in
+   `packages/database/src/client/prisma.tokens.ts`.
 
-Step 3 is not optional bookkeeping. `unclassifiedModels()` compares your list
-against `Prisma.ModelName` — generated from the schema, so it cannot drift — and
-`pnpm db:verify` fails on any model you forgot. A new table with no policy would
-otherwise be readable by every tenant.
+Steps 3 and 4 are not optional bookkeeping, and they fail differently on purpose.
+`unclassifiedModels()` compares your list against `Prisma.ModelName` — generated
+from the schema, so it cannot drift — and `pnpm db:verify` fails on any model you
+forgot. A new table with no policy would otherwise be readable by every tenant.
+
+`TENANT_TABLE_REGISTRY` is the one hand-maintained list in this layer, because its
+consumers read `pg_catalog` and cannot see Prisma's model names. So `db:verify`
+checks it against the catalog in both directions: a protected table that is not
+registered is invisible to whatever runs next, and a registered table with no
+policy is worse — callers would trust a control that is not there. A table that
+deliberately opts out of RLS has to be named in the check itself, so "correct by
+omission" does not quietly become "correct by accident"; `refresh_tokens` is the
+only one today, because rotation has to resolve a token before a tenant is known.
 
 Names in `TENANT_SCOPED_MODELS` are **PascalCase** (`'InferenceJob'`). Prisma 7
-passes the schema name to extensions, not the camelCase client property.
+passes the schema name to extensions, not the camelCase client property. Names in
+`TENANT_TABLE_REGISTRY` are the Postgres table names (`'inference_jobs'`).

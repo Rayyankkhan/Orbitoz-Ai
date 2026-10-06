@@ -29,6 +29,7 @@ export type {
   UsageRollup,
   IdempotencyKey,
   AuditLog,
+  ApprovalRequest,
 } from '../generated/prisma/browser.js';
 
 export type {
@@ -73,4 +74,9 @@ export type {
   AuditLogModel,
   AuditLogCreateInput,
   AuditLogWhereInput,
+  ApprovalRequestModel,
+  ApprovalRequestCreateInput,
+  ApprovalRequestUpdateInput,
+  ApprovalRequestWhereInput,
+  ApprovalRequestWhereUniqueInput,
 } from '../generated/prisma/models.js';
